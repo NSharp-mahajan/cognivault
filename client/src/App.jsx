@@ -1,35 +1,56 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState, useEffect, useRef } from "react";
+import { Route, Routes, useLocation } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
+import { ThemeProvider } from "./contexts/ThemeContext";
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+import PageLoader from "./components/PageLoader";
+import LandingPage from "./pages/LandingPage";
+import Dashboard from "./pages/Dashboard";
+import "./styles/global.css";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const location = useLocation();
+  const [isLoading, setIsLoading] = useState(true);
+  const hasCompletedInitialLoad = useRef(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 1000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!hasCompletedInitialLoad.current) {
+      hasCompletedInitialLoad.current = true;
+      return;
+    }
+
+    setIsLoading(true);
+    const timer = setTimeout(() => setIsLoading(false), 1000);
+
+    return () => clearTimeout(timer);
+  }, [location.pathname]);
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <ThemeProvider>
+      <div className="app-shell">
+        <PageLoader isLoading={isLoading} />
+        <Navbar />
+
+        <div className="route-container">
+          <AnimatePresence mode="wait">
+            <Routes location={location} key={location.pathname}>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+            </Routes>
+          </AnimatePresence>
+        </div>
+
+        <Footer />
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    </ThemeProvider>
+  );
 }
 
 export default App
