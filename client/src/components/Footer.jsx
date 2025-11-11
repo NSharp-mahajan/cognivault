@@ -43,8 +43,8 @@ export default function Footer() {
           </p>
 
           <form className="footer-form">
-            <label htmlFor="email" className="sr-only">Subscribe for updates</label>
-            <input id="email" type="email" placeholder="Enter your email" />
+            <label htmlFor="footer-email" className="sr-only">Subscribe for updates</label>
+            <input id="footer-email" type="email" placeholder="Enter your email" />
             <button type="submit">Stay in the loop</button>
           </form>
         </div>

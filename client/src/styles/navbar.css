@@ -78,3 +78,19 @@
   width: 80%;
 }
 
+.nav-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  padding: 8px 10px;
+  border-radius: 8px;
+  transition: color 200ms ease, background 200ms ease;
+}
+
+.nav-button:hover {
+  color: var(--text);
+  background: var(--glass-bg);
+}
+

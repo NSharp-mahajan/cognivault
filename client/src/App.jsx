@@ -2,10 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { AuthProvider } from "./contexts/AuthContext";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import PageLoader from "./components/PageLoader";
+import ProtectedRoute from "./components/ProtectedRoute";
+import AuthRedirect from "./components/AuthRedirect";
 import LandingPage from "./pages/LandingPage";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import "./styles/global.css";
 
@@ -34,21 +39,46 @@ function App() {
 
   return (
     <ThemeProvider>
-      <div className="app-shell">
-        <PageLoader isLoading={isLoading} />
-        <Navbar />
+      <AuthProvider>
+        <div className="app-shell">
+          <PageLoader isLoading={isLoading} />
+          <Navbar />
 
-        <div className="route-container">
-          <AnimatePresence mode="wait">
-            <Routes location={location} key={location.pathname}>
+          <div className="route-container">
+            <AnimatePresence mode="wait">
+              <Routes location={location} key={location.pathname}>
               <Route path="/" element={<LandingPage />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-            </Routes>
-          </AnimatePresence>
-        </div>
+              <Route
+                path="/login"
+                element={
+                  <AuthRedirect>
+                    <Login />
+                  </AuthRedirect>
+                }
+              />
+              <Route
+                path="/signup"
+                element={
+                  <AuthRedirect>
+                    <Signup />
+                  </AuthRedirect>
+                }
+              />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+              </Routes>
+            </AnimatePresence>
+          </div>
 
-        <Footer />
-      </div>
+          <Footer />
+        </div>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

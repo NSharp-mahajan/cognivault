@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
 import "../styles/dashboard.css";
 
 const sidebarItems = ["Memories", "Chat", "Graph", "Insights"];
@@ -12,6 +13,7 @@ const cards = [
 ];
 
 export default function Dashboard() {
+  const { currentUser } = useAuth();
   const [activeItem, setActiveItem] = useState("Memories");
 
   return (
@@ -51,7 +53,9 @@ export default function Dashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3 }}
         >
-          <h2 style={{ margin: 0 }}>Welcome back to your Vault, [User].</h2>
+          <h2 style={{ margin: 0 }}>
+            Welcome back to your Vault{currentUser?.email ? `, ${currentUser.email.split('@')[0]}` : ''}.
+          </h2>
           <p className="muted" style={{ marginTop: 8 }}>
             Your knowledge graph is updating in the background.
           </p>

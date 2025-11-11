@@ -1,0 +1,239 @@
+.auth-page {
+  min-height: calc(100vh - 200px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  position: relative;
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 440px;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-card {
+  padding: 48px 40px;
+  border-radius: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.auth-title {
+  font-size: clamp(28px, 4vw, 36px);
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.auth-subtitle {
+  font-size: 16px;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.auth-error {
+  padding: 12px 16px;
+  background: rgba(255, 95, 158, 0.1);
+  border: 1px solid rgba(255, 95, 158, 0.3);
+  border-radius: 12px;
+  color: var(--accent-magenta);
+  font-size: 14px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-field label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.2px;
+}
+
+.auth-field input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 16px;
+  color: var(--text);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 12px;
+  transition: all 300ms ease;
+  outline: none;
+}
+
+.auth-field input::placeholder {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.auth-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 224, 209, 0.1),
+              0 0 20px rgba(0, 224, 209, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="day"] .auth-field input:focus {
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1),
+              0 0 20px rgba(59, 130, 246, 0.15);
+}
+
+.auth-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: -4px;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 8px;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-footer {
+  margin-top: 28px;
+  text-align: center;
+  padding-top: 24px;
+  border-top: 1px solid var(--glass-stroke);
+}
+
+.auth-footer p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.auth-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 200ms ease;
+  position: relative;
+}
+
+.auth-link:hover {
+  color: var(--accent-2);
+}
+
+.auth-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--accent);
+  transition: width 300ms ease;
+}
+
+.auth-link:hover::after {
+  width: 100%;
+}
+
+/* Divider */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 24px 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--glass-stroke);
+}
+
+.auth-divider span {
+  padding: 0 16px;
+}
+
+/* Google Sign-in Button */
+.btn-google {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-stroke);
+  color: var(--text);
+  padding: 14px 22px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  border-radius: 12px;
+  transition: all 220ms ease;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.btn-google:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent);
+  box-shadow: 0 0 20px rgba(0, 224, 209, 0.1);
+  transform: translateY(-2px);
+}
+
+.btn-google:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.google-icon {
+  flex-shrink: 0;
+}
+
+[data-theme="day"] .btn-google {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="day"] .btn-google:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .auth-card {
+    padding: 36px 28px;
+  }
+
+  .auth-title {
+    font-size: 28px;
+  }
+}
+

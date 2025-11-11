@@ -1,8 +1,18 @@
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import ThemeToggle from "./ThemeToggle";
 import "../styles/navbar.css";
 
 export default function Navbar() {
+  const { currentUser, logOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    const result = await logOut();
+    if (result.success) {
+      navigate("/login");
+    }
+  };
 
   return (
     <header className="navbar">
@@ -20,13 +30,38 @@ export default function Navbar() {
             Home
           </NavLink>
           <a href="#about" className="nav-link">About</a>
-          <NavLink
-            to="/dashboard"
-            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          >
-            Vault
-          </NavLink>
-          <a href="#login" className="nav-link">Login</a>
+          {currentUser ? (
+            <>
+              <NavLink
+                to="/dashboard"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                Vault
+              </NavLink>
+              <button
+                onClick={handleLogout}
+                className="nav-link nav-button"
+                type="button"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <NavLink
+                to="/login"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                Login
+              </NavLink>
+              <NavLink
+                to="/signup"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                Sign Up
+              </NavLink>
+            </>
+          )}
           <ThemeToggle />
         </nav>
       </div>
