@@ -1,19 +1,173 @@
 import { Router } from 'express';
+import multer from 'multer';
+import pdfParse from 'pdf-parse';
+import mammoth from 'mammoth';
+import { verifyFirebaseToken } from '../config/firebaseAdmin.js';
+import { getDB } from '../config/mongodb.js';
+import { v4 as uuidv4 } from 'uuid';
 import * as graphService from '../services/graph.service.js';
 import * as mockDataService from '../services/mockData.service.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const router = Router();
 
-// Get subgraph for a specific node
-router.get('/subgraph', async (req, res) => {
+// File upload configuration
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 12 * 1024 * 1024, // 12MB cap
+  },
+});
+
+const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+// Helper function to extract text from files
+async function extractTextFromFile(file) {
+  if (!file) return '';
+
+  const buffer = file.buffer;
+  const mimetype = file.mimetype;
+
   try {
-    const { node_id, depth = 2, user_id = 'demo_user' } = req.query;
+    if (mimetype === 'application/pdf') {
+      const data = await pdfParse(buffer);
+      return data.text;
+    } else if (
+      mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      mimetype === 'application/msword'
+    ) {
+      const result = await mammoth.extractRawText({ buffer });
+      return result.value;
+    } else if (mimetype === 'text/plain' || mimetype === 'text/markdown') {
+      return buffer.toString('utf-8');
+    } else {
+      throw new Error(`Unsupported file type: ${mimetype}`);
+    }
+  } catch (error) {
+    throw new Error(`Failed to extract text: ${error.message}`);
+  }
+}
+
+// Helper function to sanitize content
+function sanitizeContent(rawText) {
+  if (!rawText) return '';
+  return rawText.replace(/\s+/g, ' ').trim();
+}
+
+// Helper function to generate AI analysis
+async function generateEnhancedAnalysis(content) {
+  if (!genAI) {
+    // Fallback analysis
+    const words = content.split(/\s+/).filter(w => w.length > 3);
+    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    const firstFewSentences = sentences.slice(0, 3).join('. ').trim();
+    
+    const summary = firstFewSentences 
+      ? `${firstFewSentences}${firstFewSentences.endsWith('.') ? '' : '.'}`
+      : `This content has been processed successfully.`;
+    
+    // Extract basic tags from content
+    const commonWords = content.toLowerCase().match(/\b\w{4,}\b/g) || [];
+    const wordFreq = {};
+    commonWords.forEach(word => {
+      wordFreq[word] = (wordFreq[word] || 0) + 1;
+    });
+    const tags = Object.entries(wordFreq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([word]) => word);
+    
+    return {
+      summary,
+      tags: tags.length > 0 ? tags : ['general', 'content', 'learning'],
+      entities: [],
+      topics: tags
+    };
+  }
+
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+
+  const prompt = `
+You are assisting in a private, persistent AI session. Analyze the provided content comprehensively.
+
+Return a JSON object with this exact structure:
+{
+  "summary": "<3-4 sentence summary>",
+  "tags": ["keyword1", "keyword2", "keyword3", ...],
+  "entities": [
+    {"name": "Entity Name", "type": "PERSON|ORG|LOCATION|DATE|OTHER"}
+  ],
+  "topics": ["topic1", "topic2", "topic3", ...]
+}
+
+Content:
+${content.slice(0, 15000)}
+`.trim();
+
+  try {
+    const result = await model.generateContent(prompt);
+    const response = result.response.text().trim();
+    
+    // Extract JSON from response
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        summary: parsed.summary || 'No summary available',
+        tags: parsed.tags || [],
+        entities: parsed.entities || [],
+        topics: parsed.topics || parsed.tags || []
+      };
+    }
+    
+    throw new Error('Invalid JSON response from AI');
+  } catch (error) {
+    console.error('AI analysis error:', error);
+    // Fallback
+    return {
+      summary: content.substring(0, 200) + '...',
+      tags: ['general', 'content'],
+      entities: [],
+      topics: ['general']
+    };
+  }
+}
+
+// Middleware to verify Firebase token
+async function authenticate(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  console.log(`[Graph API] ${req.method} ${req.path} - Token present: ${!!token}`);
+
+  try {
+    if (!token) {
+      console.warn('[Graph API] No token provided');
+      return res.status(401).json({ error: 'Authorization token missing.' });
+    }
+
+    const decoded = await verifyFirebaseToken(token);
+    req.userId = decoded.uid;
+    console.log(`[Graph API] Authenticated user: ${req.userId}`);
+    next();
+  } catch (error) {
+    console.error(`[Graph API] Authentication failed:`, error.message);
+    const statusCode = error.code === 'auth/missing-token' ? 401 : 403;
+    return res.status(statusCode).json({ error: error.message });
+  }
+}
+
+// Get subgraph for a specific node
+router.get('/subgraph', authenticate, async (req, res) => {
+  try {
+    const { node_id, depth = 2 } = req.query;
     
     if (!node_id) {
       return res.status(400).json({ error: 'node_id is required' });
     }
     
-    const subgraph = await graphService.getSubgraph(node_id, parseInt(depth), user_id);
+    const subgraph = await graphService.getSubgraph(node_id, parseInt(depth), req.userId);
     res.json(subgraph);
   } catch (error) {
     console.error('Error fetching subgraph:', error);
@@ -22,11 +176,11 @@ router.get('/subgraph', async (req, res) => {
 });
 
 // Get full graph for a user
-router.get('/full', async (req, res) => {
+router.get('/full', authenticate, async (req, res) => {
   try {
-    const { user_id = 'demo_user', limit = 100 } = req.query;
+    const { limit = 100 } = req.query;
     
-    const graph = await graphService.getUserGraph(user_id, parseInt(limit));
+    const graph = await graphService.getUserGraph(req.userId, parseInt(limit));
     res.json(graph);
   } catch (error) {
     console.error('Error fetching full graph:', error);
@@ -35,15 +189,15 @@ router.get('/full', async (req, res) => {
 });
 
 // Search nodes in the graph
-router.get('/search', async (req, res) => {
+router.get('/search', authenticate, async (req, res) => {
   try {
-    const { query, user_id = 'demo_user', type } = req.query;
+    const { query, type } = req.query;
     
     if (!query) {
       return res.status(400).json({ error: 'query is required' });
     }
     
-    const results = await graphService.searchNodes(query, user_id, type);
+    const results = await graphService.searchNodes(query, req.userId, type);
     res.json(results);
   } catch (error) {
     console.error('Error searching nodes:', error);
@@ -51,48 +205,129 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// Create a new memory node
-router.post('/memory', async (req, res) => {
+// Create a new memory node (supports both file upload and JSON)
+router.post('/memory', authenticate, upload.single('file'), async (req, res) => {
   try {
-    const { 
-      text, 
-      summary, 
-      tags = [], 
-      entities = [], 
-      user_id = 'demo_user',
-      source_file_id 
-    } = req.body;
+    console.log(`[Graph API] POST /memory for user: ${req.userId}`);
     
-    if (!text || !summary) {
-      return res.status(400).json({ error: 'text and summary are required' });
+    let text = '';
+    let summary = '';
+    let tags = [];
+    let entities = [];
+    let source_file_id = null;
+
+    // Check if file was uploaded
+    if (req.file) {
+      console.log('[Graph API] Processing file upload...');
+      const fileText = await extractTextFromFile(req.file);
+      const inputText = sanitizeContent(req.body.textInput || '');
+      const combined = sanitizeContent([fileText, inputText].filter(Boolean).join(' '));
+      
+      if (!combined || combined.trim().length === 0) {
+        return res.status(400).json({ error: 'No file or text content provided.' });
+      }
+
+      const trimmed = combined.length > 15000 ? combined.slice(0, 15000) : combined;
+      text = trimmed;
+      
+      // Generate AI analysis
+      console.log('[Graph API] Generating AI analysis...');
+      const analysis = await generateEnhancedAnalysis(trimmed);
+      summary = analysis.summary;
+      tags = analysis.tags || analysis.topics || [];
+      entities = analysis.entities || [];
+      source_file_id = `file_${Date.now()}_${req.file.originalname}`;
+    } else {
+      // JSON mode (backward compatible)
+      const { 
+        text: bodyText, 
+        summary: bodySummary, 
+        tags: bodyTags = [], 
+        entities: bodyEntities = [], 
+        source_file_id: bodyFileId 
+      } = req.body;
+      
+      if (!bodyText || !bodySummary) {
+        return res.status(400).json({ error: 'text and summary are required (or upload a file)' });
+      }
+      
+      text = bodyText;
+      summary = bodySummary;
+      tags = bodyTags;
+      entities = bodyEntities;
+      source_file_id = bodyFileId;
     }
     
-    const memory = await graphService.createMemoryNode({
-      text,
-      summary,
-      tags,
-      entities,
-      user_id,
-      source_file_id
-    });
+    // Create memory node (stores in MongoDB, Neo4j, Pinecone)
+    console.log('[Graph API] Creating memory node...');
+    let memory;
+    try {
+      memory = await graphService.createMemoryNode({
+        text,
+        summary,
+        tags,
+        entities,
+        user_id: req.userId,
+        source_file_id: source_file_id || 'direct_input'
+      });
+      console.log(`[Graph API] Memory created: ${memory.id}`);
+    } catch (graphError) {
+      console.warn('[Graph API] Graph service error, storing directly in MongoDB:', graphError.message);
+      // Fallback: Store directly in MongoDB if Neo4j/Pinecone fail
+      const db = getDB();
+      
+      const chunkId = `chunk_${uuidv4()}`;
+      const timestamp = new Date().toISOString();
+      
+      const chunkDoc = {
+        chunk_id: chunkId,
+        file_id: source_file_id || 'direct_input',
+        user_id: req.userId,
+        chunk_text: text,
+        summary,
+        tags,
+        entities,
+        created_at: timestamp
+      };
+      
+      await db.collection('chunks').insertOne(chunkDoc);
+      
+      memory = {
+        id: chunkId,
+        summary,
+        tags,
+        created_at: timestamp
+      };
+      console.log(`[Graph API] Chunk stored directly in MongoDB: ${chunkId}`);
+    }
     
-    res.json(memory);
+    res.json({
+      success: true,
+      message: 'Memory node created and saved to knowledge graph',
+      memory
+    });
   } catch (error) {
-    console.error('Error creating memory:', error);
-    res.status(500).json({ error: error.message });
+    console.error('[Graph API] Error creating memory:', error.message);
+    console.error('[Graph API] Stack:', error.stack);
+    
+    if (error.message.includes('Unsupported file type') || error.message.includes('Failed to extract')) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.status(500).json({ error: error.message || 'Failed to create memory node' });
   }
 });
 
 // Create semantic similarity edges
-router.post('/edges/similarity', async (req, res) => {
+router.post('/edges/similarity', authenticate, async (req, res) => {
   try {
-    const { memory_id, user_id = 'demo_user' } = req.body;
+    const { memory_id } = req.body;
     
     if (!memory_id) {
       return res.status(400).json({ error: 'memory_id is required' });
     }
     
-    const edges = await graphService.createSimilarityEdges(memory_id, user_id);
+    const edges = await graphService.createSimilarityEdges(memory_id, req.userId);
     res.json({ created: edges.length, edges });
   } catch (error) {
     console.error('Error creating similarity edges:', error);
@@ -101,11 +336,15 @@ router.post('/edges/similarity', async (req, res) => {
 });
 
 // Initialize graph with mock data
-router.post('/mock/initialize', async (req, res) => {
+router.post('/mock/initialize', authenticate, async (req, res) => {
   try {
+<<<<<<< Updated upstream
     const { user_id = 'demo_user', count = 5, clearExisting = true } = req.body;
     
     const result = await mockDataService.initializeMockData(user_id, count, clearExisting);
+=======
+    const result = await mockDataService.initializeMockData(req.userId);
+>>>>>>> Stashed changes
     res.json(result);
   } catch (error) {
     console.error('Error initializing mock data:', error);
@@ -114,11 +353,9 @@ router.post('/mock/initialize', async (req, res) => {
 });
 
 // Clear all data for a user
-router.delete('/clear', async (req, res) => {
+router.delete('/clear', authenticate, async (req, res) => {
   try {
-    const { user_id = 'demo_user' } = req.query;
-    
-    const result = await graphService.clearUserData(user_id);
+    const result = await graphService.clearUserData(req.userId);
     res.json(result);
   } catch (error) {
     console.error('Error clearing data:', error);
@@ -127,11 +364,9 @@ router.delete('/clear', async (req, res) => {
 });
 
 // Get graph statistics
-router.get('/stats', async (req, res) => {
+router.get('/stats', authenticate, async (req, res) => {
   try {
-    const { user_id = 'demo_user' } = req.query;
-    
-    const stats = await graphService.getGraphStats(user_id);
+    const stats = await graphService.getGraphStats(req.userId);
     res.json(stats);
   } catch (error) {
     console.error('Error getting stats:', error);

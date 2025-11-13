@@ -1,31 +1,262 @@
 import { Router } from 'express';
+import multer from 'multer';
+import pdfParse from 'pdf-parse';
+import mammoth from 'mammoth';
+import { v4 as uuidv4 } from 'uuid';
 import { verifyFirebaseToken } from '../config/firebaseAdmin.js';
+import { getDB } from '../config/mongodb.js';
 import * as timelineService from '../services/timeline.service.js';
+import * as graphService from '../services/graph.service.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const router = Router();
+
+// File upload configuration
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 12 * 1024 * 1024, // 12MB cap
+  },
+});
+
+const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+
+// Helper function to extract text from files
+async function extractTextFromFile(file) {
+  if (!file) return '';
+
+  const buffer = file.buffer;
+  const mimetype = file.mimetype;
+
+  try {
+    if (mimetype === 'application/pdf') {
+      const data = await pdfParse(buffer);
+      return data.text;
+    } else if (
+      mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      mimetype === 'application/msword'
+    ) {
+      const result = await mammoth.extractRawText({ buffer });
+      return result.value;
+    } else if (mimetype === 'text/plain' || mimetype === 'text/markdown') {
+      return buffer.toString('utf-8');
+    } else {
+      throw new Error(`Unsupported file type: ${mimetype}`);
+    }
+  } catch (error) {
+    throw new Error(`Failed to extract text: ${error.message}`);
+  }
+}
+
+// Helper function to sanitize content
+function sanitizeContent(rawText) {
+  if (!rawText) return '';
+  return rawText.replace(/\s+/g, ' ').trim();
+}
+
+// Helper function to generate AI analysis
+async function generateEnhancedAnalysis(content) {
+  if (!genAI) {
+    // Fallback analysis
+    const words = content.split(/\s+/).filter(w => w.length > 3);
+    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    const firstFewSentences = sentences.slice(0, 3).join('. ').trim();
+    
+    const summary = firstFewSentences 
+      ? `${firstFewSentences}${firstFewSentences.endsWith('.') ? '' : '.'}`
+      : `This content has been processed successfully.`;
+    
+    // Extract basic tags from content
+    const commonWords = content.toLowerCase().match(/\b\w{4,}\b/g) || [];
+    const wordFreq = {};
+    commonWords.forEach(word => {
+      wordFreq[word] = (wordFreq[word] || 0) + 1;
+    });
+    const tags = Object.entries(wordFreq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([word]) => word);
+    
+    return {
+      summary,
+      tags: tags.length > 0 ? tags : ['general', 'content', 'learning'],
+      entities: [],
+      topics: tags
+    };
+  }
+
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+
+  const prompt = `
+You are assisting in a private, persistent AI session. Analyze the provided content comprehensively.
+
+Return a JSON object with this exact structure:
+{
+  "summary": "<3-4 sentence summary>",
+  "tags": ["keyword1", "keyword2", "keyword3", ...],
+  "entities": [
+    {"name": "Entity Name", "type": "PERSON|ORG|LOCATION|DATE|OTHER"}
+  ],
+  "topics": ["topic1", "topic2", "topic3", ...]
+}
+
+Content:
+${content.slice(0, 15000)}
+`.trim();
+
+  try {
+    const result = await model.generateContent(prompt);
+    const response = result.response.text().trim();
+    
+    // Extract JSON from response
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        summary: parsed.summary || 'No summary available',
+        tags: parsed.tags || [],
+        entities: parsed.entities || [],
+        topics: parsed.topics || parsed.tags || []
+      };
+    }
+    
+    throw new Error('Invalid JSON response from AI');
+  } catch (error) {
+    console.error('AI analysis error:', error);
+    // Fallback
+    return {
+      summary: content.substring(0, 200) + '...',
+      tags: ['general', 'content'],
+      entities: [],
+      topics: ['general']
+    };
+  }
+}
 
 // Middleware to verify Firebase token
 async function authenticate(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
+  console.log(`[Timeline API] ${req.method} ${req.path} - Token present: ${!!token}`);
+
   try {
+    if (!token) {
+      console.warn('[Timeline API] No token provided');
+      return res.status(401).json({ error: 'Authorization token missing.' });
+    }
+
     const decoded = await verifyFirebaseToken(token);
     req.userId = decoded.uid;
+    console.log(`[Timeline API] Authenticated user: ${req.userId}`);
     next();
   } catch (error) {
+    console.error(`[Timeline API] Authentication failed:`, error.message);
     const statusCode = error.code === 'auth/missing-token' ? 401 : 403;
     return res.status(statusCode).json({ error: error.message });
   }
 }
 
+// POST /api/timeline/upload - Upload and persist content to timeline
+router.post('/upload', authenticate, upload.single('file'), async (req, res) => {
+  try {
+    console.log(`[Timeline API] POST /upload for user: ${req.userId}`);
+    
+    const fileText = await extractTextFromFile(req.file);
+    const inputText = sanitizeContent(req.body.textInput || '');
+
+    const combined = sanitizeContent([fileText, inputText].filter(Boolean).join(' '));
+
+    if (!combined || combined.trim().length === 0) {
+      return res.status(400).json({ error: 'No file or text content provided.' });
+    }
+
+    const trimmed = combined.length > 15000 ? combined.slice(0, 15000) : combined;
+
+    // Generate AI analysis
+    console.log('[Timeline API] Generating AI analysis...');
+    const analysis = await generateEnhancedAnalysis(trimmed);
+
+    // Generate file ID if file was uploaded
+    const fileId = req.file ? `file_${Date.now()}_${req.file.originalname}` : 'direct_input';
+
+    // Create memory node (stores in MongoDB, Neo4j, Pinecone)
+    console.log('[Timeline API] Creating memory node...');
+    let memory;
+    try {
+      memory = await graphService.createMemoryNode({
+        text: trimmed,
+        summary: analysis.summary,
+        tags: analysis.tags || analysis.topics || [],
+        entities: analysis.entities || [],
+        user_id: req.userId,
+        source_file_id: fileId
+      });
+      console.log(`[Timeline API] Memory created: ${memory.id}`);
+    } catch (graphError) {
+      console.warn('[Timeline API] Graph service error, storing directly in MongoDB:', graphError.message);
+      // Fallback: Store directly in MongoDB if Neo4j/Pinecone fail
+      const db = getDB();
+      
+      const chunkId = `chunk_${uuidv4()}`;
+      const timestamp = new Date().toISOString();
+      
+      const chunkDoc = {
+        chunk_id: chunkId,
+        file_id: fileId,
+        user_id: req.userId,
+        chunk_text: trimmed,
+        summary: analysis.summary,
+        tags: analysis.tags || analysis.topics || [],
+        entities: analysis.entities || [],
+        created_at: timestamp
+      };
+      
+      await db.collection('chunks').insertOne(chunkDoc);
+      
+      memory = {
+        id: chunkId,
+        summary: analysis.summary,
+        tags: analysis.tags || analysis.topics || [],
+        created_at: timestamp
+      };
+      console.log(`[Timeline API] Chunk stored directly in MongoDB: ${chunkId}`);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Content uploaded and saved to timeline',
+      memory: {
+        id: memory.id,
+        summary: memory.summary,
+        tags: memory.tags,
+        created_at: memory.created_at
+      },
+      analysis
+    });
+  } catch (error) {
+    console.error('[Timeline API] Upload error:', error.message);
+    console.error('[Timeline API] Stack:', error.stack);
+    
+    if (error.message.includes('Unsupported file type') || error.message.includes('Failed to extract')) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.status(500).json({ error: 'Failed to upload content to timeline' });
+  }
+});
+
 // GET /api/timeline/events - Get chronological learning events
 router.get('/events', authenticate, async (req, res) => {
   try {
+    console.log(`[Timeline API] GET /events for user: ${req.userId}`);
     const events = await timelineService.getTimelineEvents(req.userId);
+    console.log(`[Timeline API] Returning ${events.length} events`);
     res.json(events);
   } catch (error) {
-    console.error('Error fetching timeline events:', error);
+    console.error('[Timeline API] Error fetching timeline events:', error.message);
+    console.error('[Timeline API] Stack:', error.stack);
     res.status(500).json({ error: 'Failed to fetch timeline events' });
   }
 });
@@ -33,10 +264,12 @@ router.get('/events', authenticate, async (req, res) => {
 // GET /api/timeline/topic-spikes - Get topic spikes by month
 router.get('/topic-spikes', authenticate, async (req, res) => {
   try {
+    console.log(`[Timeline API] GET /topic-spikes for user: ${req.userId}`);
     const spikes = await timelineService.getTopicSpikes(req.userId);
+    console.log(`[Timeline API] Returning topic spikes for ${Object.keys(spikes).length} months`);
     res.json(spikes);
   } catch (error) {
-    console.error('Error fetching topic spikes:', error);
+    console.error('[Timeline API] Error fetching topic spikes:', error.message);
     res.status(500).json({ error: 'Failed to fetch topic spikes' });
   }
 });
@@ -44,10 +277,12 @@ router.get('/topic-spikes', authenticate, async (req, res) => {
 // GET /api/timeline/emotion-trend - Get emotion/sentiment trend
 router.get('/emotion-trend', authenticate, async (req, res) => {
   try {
+    console.log(`[Timeline API] GET /emotion-trend for user: ${req.userId}`);
     const trend = await timelineService.getEmotionTrend(req.userId);
+    console.log(`[Timeline API] Returning ${trend.length} emotion data points`);
     res.json(trend);
   } catch (error) {
-    console.error('Error fetching emotion trend:', error);
+    console.error('[Timeline API] Error fetching emotion trend:', error.message);
     res.status(500).json({ error: 'Failed to fetch emotion trend' });
   }
 });
@@ -55,10 +290,12 @@ router.get('/emotion-trend', authenticate, async (req, res) => {
 // GET /api/timeline/knowledge-evolution - Get knowledge evolution graph
 router.get('/knowledge-evolution', authenticate, async (req, res) => {
   try {
+    console.log(`[Timeline API] GET /knowledge-evolution for user: ${req.userId}`);
     const evolution = await timelineService.getKnowledgeEvolution(req.userId);
+    console.log(`[Timeline API] Returning ${evolution.nodes.length} nodes, ${evolution.edges.length} edges`);
     res.json(evolution);
   } catch (error) {
-    console.error('Error fetching knowledge evolution:', error);
+    console.error('[Timeline API] Error fetching knowledge evolution:', error.message);
     res.status(500).json({ error: 'Failed to fetch knowledge evolution' });
   }
 });
@@ -66,10 +303,12 @@ router.get('/knowledge-evolution', authenticate, async (req, res) => {
 // GET /api/timeline/branch-triggers - Get branch triggers
 router.get('/branch-triggers', authenticate, async (req, res) => {
   try {
+    console.log(`[Timeline API] GET /branch-triggers for user: ${req.userId}`);
     const triggers = await timelineService.getBranchTriggers(req.userId);
+    console.log(`[Timeline API] Returning ${triggers.length} branch triggers`);
     res.json(triggers);
   } catch (error) {
-    console.error('Error fetching branch triggers:', error);
+    console.error('[Timeline API] Error fetching branch triggers:', error.message);
     res.status(500).json({ error: 'Failed to fetch branch triggers' });
   }
 });
@@ -77,12 +316,15 @@ router.get('/branch-triggers', authenticate, async (req, res) => {
 // GET /api/timeline/insights - Get synthetic AI insights
 router.get('/insights', authenticate, async (req, res) => {
   try {
+    console.log(`[Timeline API] GET /insights for user: ${req.userId}`);
     const [events, topicSpikes, emotionTrend, knowledgeEvolution] = await Promise.all([
       timelineService.getTimelineEvents(req.userId),
       timelineService.getTopicSpikes(req.userId),
       timelineService.getEmotionTrend(req.userId),
       timelineService.getKnowledgeEvolution(req.userId)
     ]);
+    
+    console.log(`[Timeline API] Data collected: ${events.length} events, ${Object.keys(topicSpikes).length} months, ${emotionTrend.length} emotions, ${knowledgeEvolution.nodes.length} topics`);
     
     const insights = await timelineService.generateInsights(
       req.userId,
@@ -92,12 +334,12 @@ router.get('/insights', authenticate, async (req, res) => {
       knowledgeEvolution
     );
     
+    console.log(`[Timeline API] Insights generated: ${insights.substring(0, 50)}...`);
     res.json({ insights });
   } catch (error) {
-    console.error('Error generating insights:', error);
+    console.error('[Timeline API] Error generating insights:', error.message);
     res.status(500).json({ error: 'Failed to generate insights' });
   }
 });
 
 export default router;
-

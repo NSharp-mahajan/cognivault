@@ -11,7 +11,11 @@ import {
   Calendar,
   Tag,
   ArrowRight,
-  Loader2
+  Loader2,
+  Upload,
+  FileText,
+  X,
+  CheckCircle
 } from 'lucide-react';
 import ReactFlow, {
   Background,
@@ -36,6 +40,11 @@ export default function CognitiveTimeline() {
   const [branchTriggers, setBranchTriggers] = useState([]);
   const [insights, setInsights] = useState('');
   const [activeSection, setActiveSection] = useState('timeline');
+  const [error, setError] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [textInput, setTextInput] = useState('');
 
   useEffect(() => {
     if (currentUser) {
@@ -43,14 +52,84 @@ export default function CognitiveTimeline() {
     }
   }, [currentUser]);
 
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      setUploadSuccess(false);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!currentUser) {
+      setError('You must be signed in to upload content');
+      return;
+    }
+
+    if (!selectedFile && !textInput.trim()) {
+      setError('Please select a file or enter text');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setError(null);
+      setUploadSuccess(false);
+
+      const token = await currentUser.getIdToken();
+      const formData = new FormData();
+
+      if (selectedFile) {
+        formData.append('file', selectedFile);
+      }
+
+      if (textInput.trim()) {
+        formData.append('textInput', textInput.trim());
+      }
+
+      console.log('[Timeline Frontend] Uploading content...');
+      const response = await axios.post(`${API_URL}/timeline/upload`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      console.log('[Timeline Frontend] Upload successful:', response.data);
+      setUploadSuccess(true);
+      setSelectedFile(null);
+      setTextInput('');
+      
+      // Reload timeline data after upload
+      setTimeout(() => {
+        loadTimelineData();
+        setUploadSuccess(false);
+      }, 2000);
+    } catch (error) {
+      console.error('[Timeline Frontend] Upload error:', error);
+      setError(error.response?.data?.error || 'Failed to upload content');
+      setUploadSuccess(false);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const loadTimelineData = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      console.warn('[Timeline Frontend] No current user, cannot load data');
+      return;
+    }
 
     try {
       setLoading(true);
+      console.log('[Timeline Frontend] Starting to load timeline data...');
+      
       const token = await currentUser.getIdToken();
+      console.log('[Timeline Frontend] Firebase token retrieved:', token ? 'Yes' : 'No');
+      console.log('[Timeline Frontend] User ID:', currentUser.uid);
+      console.log('[Timeline Frontend] API URL:', API_URL);
 
-      const [eventsRes, spikesRes, emotionRes, evolutionRes, triggersRes, insightsRes] = await Promise.all([
+      const [eventsRes, spikesRes, emotionRes, evolutionRes, triggersRes, insightsRes] = await Promise.allSettled([
         axios.get(`${API_URL}/timeline/events`, {
           headers: { Authorization: `Bearer ${token}` }
         }),
@@ -71,14 +150,71 @@ export default function CognitiveTimeline() {
         })
       ]);
 
-      setEvents(eventsRes.data);
-      setTopicSpikes(spikesRes.data);
-      setEmotionTrend(emotionRes.data);
-      setKnowledgeEvolution(evolutionRes.data);
-      setBranchTriggers(triggersRes.data);
-      setInsights(insightsRes.data.insights || '');
+      // Process events
+      if (eventsRes.status === 'fulfilled') {
+        console.log('[Timeline Frontend] Events loaded:', eventsRes.value.data.length);
+        setEvents(eventsRes.value.data);
+      } else {
+        console.error('[Timeline Frontend] Events failed:', eventsRes.reason?.response?.data || eventsRes.reason?.message);
+        setEvents([]);
+      }
+
+      // Process topic spikes
+      if (spikesRes.status === 'fulfilled') {
+        console.log('[Timeline Frontend] Topic spikes loaded:', Object.keys(spikesRes.value.data).length, 'months');
+        setTopicSpikes(spikesRes.value.data);
+      } else {
+        console.error('[Timeline Frontend] Topic spikes failed:', spikesRes.reason?.response?.data || spikesRes.reason?.message);
+        setTopicSpikes({});
+      }
+
+      // Process emotion trend
+      if (emotionRes.status === 'fulfilled') {
+        console.log('[Timeline Frontend] Emotion trend loaded:', emotionRes.value.data.length, 'points');
+        setEmotionTrend(emotionRes.value.data);
+      } else {
+        console.error('[Timeline Frontend] Emotion trend failed:', emotionRes.reason?.response?.data || emotionRes.reason?.message);
+        setEmotionTrend([]);
+      }
+
+      // Process knowledge evolution
+      if (evolutionRes.status === 'fulfilled') {
+        const evolution = evolutionRes.value.data;
+        console.log('[Timeline Frontend] Knowledge evolution loaded:', evolution.nodes?.length || 0, 'nodes,', evolution.edges?.length || 0, 'edges');
+        setKnowledgeEvolution(evolution);
+      } else {
+        console.error('[Timeline Frontend] Knowledge evolution failed:', evolutionRes.reason?.response?.data || evolutionRes.reason?.message);
+        setKnowledgeEvolution({ nodes: [], edges: [], newBranches: [] });
+      }
+
+      // Process branch triggers
+      if (triggersRes.status === 'fulfilled') {
+        console.log('[Timeline Frontend] Branch triggers loaded:', triggersRes.value.data.length);
+        setBranchTriggers(triggersRes.value.data);
+      } else {
+        console.error('[Timeline Frontend] Branch triggers failed:', triggersRes.reason?.response?.data || triggersRes.reason?.message);
+        setBranchTriggers([]);
+      }
+
+      // Process insights
+      if (insightsRes.status === 'fulfilled') {
+        console.log('[Timeline Frontend] Insights loaded');
+        setInsights(insightsRes.value.data.insights || '');
+      } else {
+        console.error('[Timeline Frontend] Insights failed:', insightsRes.reason?.response?.data || insightsRes.reason?.message);
+        setInsights('');
+      }
+
+      console.log('[Timeline Frontend] All data loaded successfully');
+      setError(null);
     } catch (error) {
-      console.error('Error loading timeline data:', error);
+      console.error('[Timeline Frontend] Critical error loading timeline data:', error);
+      console.error('[Timeline Frontend] Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      setError(error.response?.data?.error || error.message || 'Failed to load timeline data');
     } finally {
       setLoading(false);
     }
@@ -89,6 +225,16 @@ export default function CognitiveTimeline() {
       <div className="timeline-loading">
         <Loader2 className="spinner" />
         <p>Loading your cognitive journey...</p>
+      </div>
+    );
+  }
+
+  if (error && events.length === 0) {
+    return (
+      <div className="timeline-error">
+        <h2>Unable to Load Timeline</h2>
+        <p>{error}</p>
+        <button onClick={loadTimelineData}>Retry</button>
       </div>
     );
   }
@@ -128,6 +274,92 @@ export default function CognitiveTimeline() {
           </motion.div>
         )}
       </div>
+
+      {/* Upload Section */}
+      <motion.section
+        className="timeline-upload-section"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <div className="upload-container">
+          <h3 className="upload-title">
+            <Upload className="upload-icon" />
+            Add to Your Timeline
+          </h3>
+          <p className="upload-subtitle">Upload files or enter text to build your learning journey</p>
+          
+          <div className="upload-form">
+            <div className="upload-inputs">
+              <div className="file-upload-area">
+                <input
+                  type="file"
+                  id="file-upload"
+                  accept=".pdf,.txt,.docx"
+                  onChange={handleFileSelect}
+                  className="file-input"
+                  disabled={uploading}
+                />
+                <label htmlFor="file-upload" className="file-label">
+                  <FileText size={24} />
+                  {selectedFile ? selectedFile.name : 'Choose file (PDF, TXT, DOCX)'}
+                </label>
+                {selectedFile && (
+                  <button
+                    className="remove-file-btn"
+                    onClick={() => setSelectedFile(null)}
+                    disabled={uploading}
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
+              <div className="text-input-area">
+                <textarea
+                  placeholder="Or enter text directly..."
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  className="text-input"
+                  disabled={uploading}
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="upload-error">
+                {error}
+              </div>
+            )}
+
+            {uploadSuccess && (
+              <div className="upload-success">
+                <CheckCircle size={20} />
+                Content uploaded successfully! Timeline updating...
+              </div>
+            )}
+
+            <button
+              onClick={handleUpload}
+              disabled={uploading || (!selectedFile && !textInput.trim())}
+              className="upload-button"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="spinner-small" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload size={20} />
+                  Upload to Timeline
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </motion.section>
 
       <div className="timeline-sections">
         {/* Section 1: Learning Timeline View */}
@@ -367,17 +599,19 @@ function KnowledgeEvolutionGraphInner({ knowledgeEvolution }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
-    if (knowledgeEvolution.nodes && knowledgeEvolution.nodes.length > 0) {
+    if (knowledgeEvolution && knowledgeEvolution.nodes && knowledgeEvolution.nodes.length > 0) {
+      console.log('[Timeline Frontend] Setting up React Flow with', knowledgeEvolution.nodes.length, 'nodes');
+      
       const flowNodes = knowledgeEvolution.nodes.map((node, index) => ({
-        id: node.id,
+        id: node.id || `node_${index}`,
         type: 'default',
         position: {
           x: (index % 5) * 150 + 50,
           y: Math.floor(index / 5) * 150 + 50
         },
         data: {
-          label: node.label,
-          count: node.count
+          label: node.label || 'Topic',
+          count: node.count || 0
         },
         style: {
           background: '#6366f1',
@@ -389,17 +623,22 @@ function KnowledgeEvolutionGraphInner({ knowledgeEvolution }) {
         }
       }));
 
-      const flowEdges = knowledgeEvolution.edges.map(edge => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
+      const flowEdges = (knowledgeEvolution.edges || []).map((edge, index) => ({
+        id: edge.id || `edge_${index}`,
+        source: edge.source || '',
+        target: edge.target || '',
         type: 'smoothstep',
         animated: true,
         style: { stroke: '#6366f1', strokeWidth: 2 }
-      }));
+      })).filter(edge => edge.source && edge.target);
 
+      console.log('[Timeline Frontend] React Flow:', flowNodes.length, 'nodes,', flowEdges.length, 'edges');
       setNodes(flowNodes);
       setEdges(flowEdges);
+    } else {
+      console.log('[Timeline Frontend] No nodes to display in React Flow');
+      setNodes([]);
+      setEdges([]);
     }
   }, [knowledgeEvolution, setNodes, setEdges]);
 

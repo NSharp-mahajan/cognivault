@@ -26,7 +26,13 @@ import {
   Filter,
   Eye,
   EyeOff,
+<<<<<<< Updated upstream
   Trash2
+=======
+  X,
+  CheckCircle,
+  Loader2
+>>>>>>> Stashed changes
 } from 'lucide-react';
 import CustomNode from './CustomNode';
 import GraphControls from './GraphControls';
@@ -61,6 +67,12 @@ const KnowledgeGraph = () => {
   const [showLabels, setShowLabels] = useState(true);
   const [layoutMode, setLayoutMode] = useState('force');
   const [notifications, setNotifications] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [textInput, setTextInput] = useState('');
+  const [uploadError, setUploadError] = useState(null);
+  const [showUploadPanel, setShowUploadPanel] = useState(false);
   
   const { fitView } = useReactFlow();
 
@@ -80,10 +92,16 @@ const KnowledgeGraph = () => {
       setLoading(true);
       addNotification('Clearing old data and creating 5 memories...', 'info', 3000);
       
+<<<<<<< Updated upstream
       const response = await axios.post(`${API_URL}/graph/mock/initialize`, {
         user_id: userId,
         count: 5,           // Create only 5 memories instead of 10
         clearExisting: true // Clear old data first
+=======
+      const token = currentUser ? await currentUser.getIdToken() : null;
+      const response = await axios.post(`${API_URL}/graph/mock/initialize`, {}, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+>>>>>>> Stashed changes
       });
       
       if (response.data.success) {
@@ -108,8 +126,10 @@ const KnowledgeGraph = () => {
   const loadFullGraph = async () => {
     try {
       setLoading(true);
+      const token = currentUser ? await currentUser.getIdToken() : null;
       const response = await axios.get(`${API_URL}/graph/full`, {
-        params: { user_id: userId, limit: 200 }
+        params: { limit: 200 },
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       
       const { nodes: rawNodes, edges: rawEdges } = response.data;
@@ -145,12 +165,13 @@ const KnowledgeGraph = () => {
   const loadSubgraph = async (nodeId) => {
     try {
       setLoading(true);
+      const token = currentUser ? await currentUser.getIdToken() : null;
       const response = await axios.get(`${API_URL}/graph/subgraph`, {
         params: { 
           node_id: nodeId, 
-          depth: depthLevel, 
-          user_id: userId 
-        }
+          depth: depthLevel
+        },
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       
       const { nodes: rawNodes, edges: rawEdges } = response.data;
@@ -239,12 +260,13 @@ const KnowledgeGraph = () => {
     
     try {
       setLoading(true);
+      const token = currentUser ? await currentUser.getIdToken() : null;
       const response = await axios.get(`${API_URL}/graph/search`, {
         params: {
           query: searchQuery,
-          user_id: userId,
           type: filterType !== 'all' ? filterType : undefined
-        }
+        },
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       
       const searchResults = response.data;
@@ -293,8 +315,9 @@ const KnowledgeGraph = () => {
   // Get graph statistics
   const loadGraphStats = async () => {
     try {
+      const token = currentUser ? await currentUser.getIdToken() : null;
       const response = await axios.get(`${API_URL}/graph/stats`, {
-        params: { user_id: userId }
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       setGraphStats(response.data);
     } catch (error) {
@@ -332,9 +355,82 @@ const KnowledgeGraph = () => {
 
   // Initial load
   useEffect(() => {
-    loadFullGraph();
-    loadGraphStats();
-  }, [userId]);
+    if (currentUser) {
+      loadFullGraph();
+      loadGraphStats();
+    }
+  }, [currentUser]);
+
+  // Handle file selection
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+      setUploadSuccess(false);
+      setUploadError(null);
+    }
+  };
+
+  // Handle upload to Knowledge Graph
+  const handleUpload = async () => {
+    if (!currentUser) {
+      setUploadError('You must be signed in to upload content');
+      addNotification('Please sign in to upload content', 'error');
+      return;
+    }
+
+    if (!selectedFile && !textInput.trim()) {
+      setUploadError('Please select a file or enter text');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setUploadError(null);
+      setUploadSuccess(false);
+
+      const token = await currentUser.getIdToken();
+      const formData = new FormData();
+
+      if (selectedFile) {
+        formData.append('file', selectedFile);
+      }
+
+      if (textInput.trim()) {
+        formData.append('textInput', textInput.trim());
+      }
+
+      console.log('[Knowledge Graph] Uploading content...');
+      const response = await axios.post(`${API_URL}/graph/memory`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      console.log('[Knowledge Graph] Upload successful:', response.data);
+      setUploadSuccess(true);
+      setSelectedFile(null);
+      setTextInput('');
+      addNotification('Content uploaded successfully! Refreshing graph...', 'success');
+      
+      // Reload graph after upload
+      setTimeout(() => {
+        loadFullGraph();
+        loadGraphStats();
+        setUploadSuccess(false);
+        setShowUploadPanel(false);
+      }, 2000);
+    } catch (error) {
+      console.error('[Knowledge Graph] Upload error:', error);
+      const errorMsg = error.response?.data?.error || 'Failed to upload content';
+      setUploadError(errorMsg);
+      addNotification(errorMsg, 'error');
+      setUploadSuccess(false);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Filter nodes based on type
   const filteredNodes = useMemo(() => {
@@ -373,11 +469,20 @@ const KnowledgeGraph = () => {
         
         <div className="graph-actions">
           <button 
+            onClick={() => setShowUploadPanel(!showUploadPanel)}
+            className="action-btn"
+            title="Upload Content"
+          >
+            <Upload size={18} />
+            Upload
+          </button>
+          
+          <button 
             onClick={initializeMockData}
             className="action-btn"
             title="Initialize Mock Data"
           >
-            <Upload size={18} />
+            <Layers size={18} />
             Mock Data
           </button>
           
@@ -407,6 +512,94 @@ const KnowledgeGraph = () => {
           </button>
         </div>
       </div>
+
+      {/* Upload Panel */}
+      {showUploadPanel && (
+        <motion.div
+          className="graph-upload-panel"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+        >
+          <div className="upload-panel-header">
+            <h3>Upload Content to Knowledge Graph</h3>
+            <button 
+              onClick={() => setShowUploadPanel(false)}
+              className="close-upload-btn"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          
+          <div className="upload-panel-content">
+            <div className="file-upload-area">
+              <input
+                type="file"
+                id="graph-file-upload"
+                accept=".pdf,.txt,.docx"
+                onChange={handleFileSelect}
+                className="file-input"
+                disabled={uploading}
+              />
+              <label htmlFor="graph-file-upload" className="file-label">
+                <FileText size={24} />
+                {selectedFile ? selectedFile.name : 'Choose file (PDF, TXT, DOCX)'}
+              </label>
+              {selectedFile && (
+                <button
+                  className="remove-file-btn"
+                  onClick={() => setSelectedFile(null)}
+                  disabled={uploading}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            <div className="text-input-area">
+              <textarea
+                placeholder="Or enter text directly..."
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                className="text-input"
+                disabled={uploading}
+                rows={3}
+              />
+            </div>
+
+            {uploadError && (
+              <div className="upload-error">
+                {uploadError}
+              </div>
+            )}
+
+            {uploadSuccess && (
+              <div className="upload-success">
+                <CheckCircle size={20} />
+                Content uploaded successfully! Graph updating...
+              </div>
+            )}
+
+            <button
+              onClick={handleUpload}
+              disabled={uploading || (!selectedFile && !textInput.trim())}
+              className="upload-button"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="spinner-small" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload size={20} />
+                  Upload to Graph
+                </>
+              )}
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       <GraphControls
         searchQuery={searchQuery}
