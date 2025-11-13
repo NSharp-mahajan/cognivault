@@ -39,17 +39,16 @@ export default function Navbar() {
                 Vault
               </NavLink>
               <NavLink
-<<<<<<< Updated upstream
-                to="/incognito"
-                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-              >
-                Incognito
-=======
                 to="/cognitive-timeline"
                 className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
               >
                 Timeline
->>>>>>> Stashed changes
+              </NavLink>
+              <NavLink
+                to="/incognito"
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                Incognito
               </NavLink>
               <button
                 onClick={handleLogout}
