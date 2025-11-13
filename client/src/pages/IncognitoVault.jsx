@@ -19,6 +19,10 @@ import {
   MessageSquare,
   FileUp,
   Loader2,
+  RotateCcw,
+  ChevronDown,
+  ChevronUp,
+  Info,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import "../styles/incognito.css";
@@ -48,6 +52,13 @@ const SUGGESTIONS = [
   { id: "insights", label: "Extract actionable insights", action: "insights" },
 ];
 
+const CHAT_SUGGESTIONS = [
+  { id: "explain", label: "Explain simply" },
+  { id: "steps", label: "Break into steps" },
+  { id: "examples", label: "Give examples" },
+  { id: "clarity", label: "Improve clarity" },
+];
+
 export default function IncognitoVault() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
@@ -60,7 +71,11 @@ export default function IncognitoVault() {
   const [error, setError] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
-  const [isChatting, setIsChatting] = useState(false);
+  const [chatState, setChatState] = useState("idle"); // idle, sending, error
+  const [chatError, setChatError] = useState(null);
+  const [lastFailedMessage, setLastFailedMessage] = useState(null);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [lastMetadata, setLastMetadata] = useState(null);
   const [sessionContent, setSessionContent] = useState(null);
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -106,6 +121,11 @@ export default function IncognitoVault() {
     setError(null);
     setChatMessages([]);
     setChatInput("");
+    setChatState("idle");
+    setChatError(null);
+    setLastFailedMessage(null);
+    setShowDebugPanel(false);
+    setLastMetadata(null);
     setSessionContent(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -184,45 +204,116 @@ export default function IncognitoVault() {
     }
   };
 
-  const handleChat = async (message) => {
-    if (!currentUser || !sessionContent) {
-      setError("Please process content first before chatting.");
+  const handleChat = async (message, retry = false) => {
+    if (!currentUser) {
+      setChatError("You must be signed in to use chat.");
+      setChatState("error");
       return;
     }
 
-    try {
-      setIsChatting(true);
-      setError(null);
+    if (!message || !message.trim()) {
+      return;
+    }
 
+    const messageToSend = message.trim();
+    
+    // Optimistic UI: Add user message immediately
+    if (!retry) {
+      setChatMessages((prev) => [
+        ...prev,
+        { 
+          role: "user", 
+          content: messageToSend,
+          timestamp: new Date(),
+        },
+      ]);
+      setChatInput("");
+    }
+
+    setChatState("sending");
+    setChatError(null);
+    setLastFailedMessage(messageToSend);
+
+    try {
       const token = await currentUser.getIdToken();
       const response = await axios.post(
         `${API_URL}/incognito/chat`,
         {
-          message,
-          context: sessionContent,
+          message: messageToSend,
+          context: sessionContent || undefined,
         },
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
         }
       );
 
+      // Add assistant reply (works for both real AI and mock responses)
+      // Remove any previous error messages and add the new assistant reply
       setChatMessages((prev) => [
-        ...prev,
-        { role: "user", content: message },
-        { role: "assistant", content: response.data.response },
+        ...prev.filter(msg => msg.role !== "error"),
+        { 
+          role: "assistant", 
+          content: response.data.reply,
+          timestamp: new Date(),
+          metadata: response.data.metadata,
+        },
       ]);
-      setChatInput("");
+      
+      setLastMetadata(response.data.metadata);
+      setChatState("idle");
+      setChatError(null);
     } catch (err) {
       console.error("Chat failed:", err);
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
+
+      // Only show error for actual HTTP errors (4xx, 5xx), not for successful responses
+      if (err.response && err.response.status >= 400) {
+        const errorMessage = err.response?.data?.error || 
+                            "AI temporarily unavailable — please try again.";
+        
+        setChatError(errorMessage);
+        setChatState("error");
+        
+        // Add error message to chat (user message is already there from optimistic update)
+        setChatMessages((prev) => [
+          ...prev,
+          { 
+            role: "error", 
+            content: errorMessage,
+            timestamp: new Date(),
+            retryable: true,
+          },
+        ]);
       } else {
-        setError("Unable to chat right now. Please try again.");
+        // Network error or other issue - use fallback
+        const errorMessage = "Network error. Please check your connection and try again.";
+        setChatError(errorMessage);
+        setChatState("error");
+        
+        setChatMessages((prev) => [
+          ...prev,
+          { 
+            role: "error", 
+            content: errorMessage,
+            timestamp: new Date(),
+            retryable: true,
+          },
+        ]);
       }
-    } finally {
-      setIsChatting(false);
+    }
+  };
+
+  const handleRetry = () => {
+    if (lastFailedMessage) {
+      // Remove the last error message before retrying
+      setChatMessages((prev) => prev.filter((msg, idx) => {
+        // Remove the last error message
+        const lastErrorIdx = prev.findLastIndex(m => m.role === "error");
+        return idx !== lastErrorIdx;
+      }));
+      handleChat(lastFailedMessage, true);
     }
   };
 
@@ -240,6 +331,34 @@ export default function IncognitoVault() {
     };
 
     await handleChat(prompts[action]);
+  };
+
+  const handleChatSuggestion = (suggestion) => {
+    const prompts = {
+      explain: "Explain this simply and clearly.",
+      steps: "Break this down into clear, numbered steps.",
+      examples: "Provide concrete examples to illustrate this.",
+      clarity: "Improve the clarity and readability of this.",
+    };
+
+    const prompt = prompts[suggestion.id] || suggestion.label;
+    handleChat(prompt);
+  };
+
+  const formatTimestamp = (date) => {
+    if (!date) return "";
+    const now = new Date();
+    const msgDate = new Date(date);
+    const diffMs = now - msgDate;
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    
+    return msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const handleEndSession = () => {
@@ -430,7 +549,7 @@ export default function IncognitoVault() {
                       key={suggestion.id}
                       className="suggestion-btn"
                       onClick={() => handleSuggestion(suggestion.action)}
-                      disabled={isChatting}
+                      disabled={chatState === "sending"}
                     >
                       {suggestion.label}
                     </button>
@@ -449,21 +568,92 @@ export default function IncognitoVault() {
                 <div className="chat-header">
                   <MessageSquare size={18} />
                   <span>AI Chat</span>
+                  <button
+                    className="debug-toggle"
+                    onClick={() => setShowDebugPanel(!showDebugPanel)}
+                    title="Show AI Thinking"
+                  >
+                    <Info size={14} />
+                    {showDebugPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
                 </div>
+
+                {showDebugPanel && lastMetadata && (
+                  <motion.div
+                    className="debug-panel"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                  >
+                    <div className="debug-content">
+                      <strong>Metadata:</strong>
+                      <pre>{JSON.stringify(lastMetadata, null, 2)}</pre>
+                    </div>
+                  </motion.div>
+                )}
+
                 <div className="chat-messages">
                   {chatMessages.length === 0 ? (
                     <div className="chat-empty">
                       <p>Ask questions about your content</p>
                     </div>
                   ) : (
-                    chatMessages.map((msg, idx) => (
-                      <div key={idx} className={`chat-message ${msg.role}`}>
-                        <p>{msg.content}</p>
+                    <AnimatePresence>
+                      {chatMessages.map((msg, idx) => (
+                        <motion.div
+                          key={idx}
+                          className={`chat-message ${msg.role}`}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <p>{msg.content}</p>
+                          {msg.timestamp && (
+                            <span className="chat-timestamp">{formatTimestamp(msg.timestamp)}</span>
+                          )}
+                          {msg.role === "error" && msg.retryable && (
+                            <button className="chat-retry" onClick={handleRetry}>
+                              <RotateCcw size={12} />
+                              Retry
+                            </button>
+                          )}
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  )}
+                  {chatState === "sending" && (
+                    <motion.div
+                      className="chat-message typing-indicator"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <div className="typing-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
                       </div>
-                    ))
+                      <span className="typing-text">AI is thinking…</span>
+                    </motion.div>
                   )}
                   <div ref={chatEndRef} />
                 </div>
+
+                {chatMessages.length > 0 && (
+                  <div className="chat-suggestions">
+                    {CHAT_SUGGESTIONS.map((suggestion) => (
+                      <button
+                        key={suggestion.id}
+                        className="chat-suggestion-chip"
+                        onClick={() => handleChatSuggestion(suggestion)}
+                        disabled={chatState === "sending"}
+                      >
+                        {suggestion.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <div className="chat-input-wrapper">
                   <input
                     type="text"
@@ -471,18 +661,22 @@ export default function IncognitoVault() {
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyPress={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey && chatInput.trim()) {
+                      if (e.key === "Enter" && !e.shiftKey && chatInput.trim() && chatState !== "sending") {
                         handleChat(chatInput);
                       }
                     }}
-                    disabled={isChatting}
+                    disabled={chatState === "sending"}
                   />
                   <button
                     className="chat-send"
                     onClick={() => chatInput.trim() && handleChat(chatInput)}
-                    disabled={isChatting || !chatInput.trim()}
+                    disabled={chatState === "sending" || !chatInput.trim()}
                   >
-                    <Send size={16} />
+                    {chatState === "sending" ? (
+                      <Loader2 size={16} className="spin" />
+                    ) : (
+                      <Send size={16} />
+                    )}
                   </button>
                 </div>
               </motion.div>
