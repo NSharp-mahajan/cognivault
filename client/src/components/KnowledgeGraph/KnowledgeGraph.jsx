@@ -26,13 +26,10 @@ import {
   Filter,
   Eye,
   EyeOff,
-<<<<<<< Updated upstream
-  Trash2
-=======
+  Trash2,
   X,
   CheckCircle,
   Loader2
->>>>>>> Stashed changes
 } from 'lucide-react';
 import CustomNode from './CustomNode';
 import GraphControls from './GraphControls';
@@ -92,16 +89,12 @@ const KnowledgeGraph = () => {
       setLoading(true);
       addNotification('Clearing old data and creating 5 memories...', 'info', 3000);
       
-<<<<<<< Updated upstream
+      const token = currentUser ? await currentUser.getIdToken() : null;
       const response = await axios.post(`${API_URL}/graph/mock/initialize`, {
-        user_id: userId,
         count: 5,           // Create only 5 memories instead of 10
         clearExisting: true // Clear old data first
-=======
-      const token = currentUser ? await currentUser.getIdToken() : null;
-      const response = await axios.post(`${API_URL}/graph/mock/initialize`, {}, {
+      }, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
->>>>>>> Stashed changes
       });
       
       if (response.data.success) {

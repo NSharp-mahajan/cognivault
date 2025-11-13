@@ -31,7 +31,9 @@ export default function Dashboard() {
   };
 
   const handleCardClick = (cardTitle) => {
-    if (cardTitle === "Knowledge Graph") {
+    if (cardTitle === "Smart Upload") {
+      navigate("/upload");
+    } else if (cardTitle === "Knowledge Graph") {
       navigate("/knowledge-graph");
     } else if (cardTitle === "Cognitive Timeline") {
       navigate("/cognitive-timeline");

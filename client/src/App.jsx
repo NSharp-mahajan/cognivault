@@ -15,6 +15,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import KnowledgeGraph from "./components/KnowledgeGraph";
+import UploadPage from "./components/Dashboard/UploadPage";
 import IncognitoVault from "./pages/IncognitoVault";
 import CognitiveTimeline from "./pages/CognitiveTimeline";
 import "./styles/global.css";

@@ -338,13 +338,9 @@ router.post('/edges/similarity', authenticate, async (req, res) => {
 // Initialize graph with mock data
 router.post('/mock/initialize', authenticate, async (req, res) => {
   try {
-<<<<<<< Updated upstream
-    const { user_id = 'demo_user', count = 5, clearExisting = true } = req.body;
+    const { count = 5, clearExisting = true } = req.body;
     
-    const result = await mockDataService.initializeMockData(user_id, count, clearExisting);
-=======
-    const result = await mockDataService.initializeMockData(req.userId);
->>>>>>> Stashed changes
+    const result = await mockDataService.initializeMockData(req.userId, count, clearExisting);
     res.json(result);
   } catch (error) {
     console.error('Error initializing mock data:', error);

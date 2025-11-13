@@ -213,16 +213,14 @@ async function createGraphNodes(processedChunks, fileId, fileName, userId, docum
     // Create Source node for the file
     const sourceNodeId = `source_${fileId}`;
     await session.run(
-      `CREATE (s:Source {
-        id: $id,
-        filename: $filename,
-        file_id: $fileId,
-        user_id: $userId,
-        document_type: $documentType,
-        main_topic: $mainTopic,
-        created_at: datetime()
-      })
-      RETURN s`,
+      `MERGE (s:Source {id: $id})
+       ON CREATE SET s.filename = $filename,
+                     s.file_id = $fileId,
+                     s.user_id = $userId,
+                     s.document_type = $documentType,
+                     s.main_topic = $mainTopic,
+                     s.created_at = datetime()
+       RETURN s`,
       {
         id: sourceNodeId,
         filename: fileName,
@@ -239,15 +237,13 @@ async function createGraphNodes(processedChunks, fileId, fileName, userId, docum
       
       // Create Memory node
       await session.run(
-        `CREATE (m:Memory {
-          id: $id,
-          user_id: $userId,
-          summary: $summary,
-          chunk_id: $chunkId,
-          file_id: $fileId,
-          created_at: datetime()
-        })
-        RETURN m`,
+        `MERGE (m:Memory {id: $id})
+         ON CREATE SET m.user_id = $userId,
+                       m.summary = $summary,
+                       m.chunk_id = $chunkId,
+                       m.file_id = $fileId,
+                       m.created_at = datetime()
+         RETURN m`,
         {
           id: memoryNodeId,
           userId: userId,
@@ -276,27 +272,27 @@ async function createGraphNodes(processedChunks, fileId, fileName, userId, docum
       
       // Create Concept nodes and TAGGED_WITH relationships
       for (const tag of chunkData.metadata.tags) {
-        const conceptId = tag.toLowerCase().replace(/\s+/g, '-');
+        const normalizedTag = tag.toLowerCase().trim();
         
-        // Create or merge concept node
+        // Create or merge concept node based on name (which has unique constraint)
         await session.run(
-          `MERGE (c:Concept {id: $id, user_id: $userId})
-           ON CREATE SET c.name = $name
+          `MERGE (c:Concept {name: $name})
+           ON CREATE SET c.user_id = $userId, c.created_at = datetime()
+           ON MATCH SET c.user_id = COALESCE(c.user_id, $userId)
            RETURN c`,
           {
-            id: conceptId,
-            userId: userId,
-            name: tag
+            name: normalizedTag,
+            userId: userId
           }
         );
         
         // Create TAGGED_WITH relationship
         await session.run(
-          `MATCH (m:Memory {id: $memoryId}), (c:Concept {id: $conceptId})
-           CREATE (m)-[:TAGGED_WITH]->(c)`,
+          `MATCH (m:Memory {id: $memoryId}), (c:Concept {name: $name})
+           MERGE (m)-[:TAGGED_WITH]->(c)`,
           {
             memoryId: memoryNodeId,
-            conceptId: conceptId
+            name: normalizedTag
           }
         );
       }
@@ -321,7 +317,7 @@ async function createGraphNodes(processedChunks, fileId, fileName, userId, docum
         // Create MENTIONS relationship
         await session.run(
           `MATCH (m:Memory {id: $memoryId}), (e:Entity {id: $entityId})
-           CREATE (m)-[:MENTIONS]->(e)`,
+           MERGE (m)-[:MENTIONS]->(e)`,
           {
             memoryId: memoryNodeId,
             entityId: entityId
