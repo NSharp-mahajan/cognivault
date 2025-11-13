@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import graphRoutes from './routes/graph.routes.js';
 import incognitoRoutes from './routes/incognito.routes.js';
+import timelineRoutes from './routes/timeline.routes.js';
 import { connectNeo4j } from './config/neo4j.js';
 import { connectMongoDB } from './config/mongodb.js';
 import { initPinecone } from './config/pinecone.js';
@@ -61,6 +62,7 @@ async function initializeServices() {
 // Routes
 app.use('/api/graph', graphRoutes);
 app.use('/api/incognito', incognitoRoutes);
+app.use('/api/timeline', timelineRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

@@ -4,12 +4,13 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import "../styles/dashboard.css";
 
-const sidebarItems = ["Memories", "Chat", "Graph", "Insights", "Incognito Vault"];
+const sidebarItems = ["Memories", "Chat", "Graph", "Timeline", "Insights", "Incognito Vault"];
 
 const cards = [
   { title: "Recent Notes", desc: "Upload files to populate your memories.", icon: "📝" },
   { title: "AI Insights", desc: "Summaries and connections appear here.", icon: "✨" },
   { title: "Knowledge Graph", desc: "Interactive nodes and relationships.", icon: "🕸️" },
+  { title: "Cognitive Timeline", desc: "Visualize your learning evolution over time.", icon: "📈" },
   { title: "Chat with Vault", desc: "Converse with your memories in natural language.", icon: "💬" },
 ];
 
@@ -22,6 +23,8 @@ export default function Dashboard() {
     setActiveItem(item);
     if (item === "Graph") {
       navigate("/knowledge-graph");
+    } else if (item === "Timeline") {
+      navigate("/cognitive-timeline");
     } else if (item === "Incognito Vault") {
       navigate("/incognito");
     }
@@ -30,6 +33,8 @@ export default function Dashboard() {
   const handleCardClick = (cardTitle) => {
     if (cardTitle === "Knowledge Graph") {
       navigate("/knowledge-graph");
+    } else if (cardTitle === "Cognitive Timeline") {
+      navigate("/cognitive-timeline");
     }
   };
 
@@ -88,7 +93,7 @@ export default function Dashboard() {
               transition={{ duration: 0.6, delay: 0.4 + index * 0.1 }}
               whileHover={{ scale: 1.02, y: -4 }}
               onClick={() => handleCardClick(card.title)}
-              style={{ cursor: card.title === "Knowledge Graph" ? "pointer" : "default" }}
+              style={{ cursor: (card.title === "Knowledge Graph" || card.title === "Cognitive Timeline") ? "pointer" : "default" }}
             >
               <div className="card-icon">{card.icon}</div>
               <h4 className="card-title">{card.title}</h4>

@@ -16,6 +16,7 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import KnowledgeGraph from "./components/KnowledgeGraph";
 import IncognitoVault from "./pages/IncognitoVault";
+import CognitiveTimeline from "./pages/CognitiveTimeline";
 import "./styles/global.css";
 
 
@@ -95,6 +96,14 @@ function AppContent() {
                   element={
                     <ProtectedRoute>
                       <IncognitoVault />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cognitive-timeline"
+                  element={
+                    <ProtectedRoute>
+                      <CognitiveTimeline />
                     </ProtectedRoute>
                   }
                 />
