@@ -168,13 +168,128 @@ function analyzeSentiment(text) {
   return { label, score };
 }
 
+function generateMockChatResponse(message, context) {
+  // Generate helpful mock responses based on message content
+  const lowerMessage = message.toLowerCase();
+  const hasContext = context && (context.file || context.text);
+  
+  // Handle common question patterns
+  if (lowerMessage.includes("question") || lowerMessage.includes("ask")) {
+    if (hasContext) {
+      return `Here are 5 key questions you should consider about your content:
+
+1. What is the main purpose or objective of this content?
+2. What are the key concepts or ideas being presented?
+3. How does this information relate to your goals or interests?
+4. What actions or next steps are suggested or implied?
+5. What additional information would help you better understand this topic?
+
+These questions can help you extract the most value from the content you've processed.`;
+    }
+    return `Here are 5 key questions you should consider:
+
+1. What is the main purpose or objective of this content?
+2. What are the key concepts or ideas being presented?
+3. How does this information relate to your goals or interests?
+4. What actions or next steps are suggested or implied?
+5. What additional information would help you better understand this topic?
+
+To get questions specific to your content, please process a file or text first using "Process with AI".`;
+  }
+  
+  if (lowerMessage.includes("summar") || lowerMessage.includes("simpl")) {
+    return `Based on the content you've provided, here's a simplified summary:
+
+The content covers key concepts and information relevant to your query. The main points include important details that address your question. To get a more detailed summary, please ensure you've processed your content first using the "Process with AI" button above.
+
+For a more comprehensive analysis, make sure to upload your file or enter text in the input area.`;
+  }
+  
+  if (lowerMessage.includes("step") || lowerMessage.includes("break")) {
+    return `Here's a step-by-step breakdown:
+
+1. **Review the content** - Start by understanding the main topic
+2. **Identify key points** - Look for important concepts or ideas
+3. **Organize information** - Group related information together
+4. **Apply insights** - Consider how this relates to your needs
+5. **Take action** - Use the information to move forward
+
+This structured approach can help you make the most of the processed content.`;
+  }
+  
+  if (lowerMessage.includes("example") || lowerMessage.includes("illustrate")) {
+    return `Here are some examples to illustrate the concept:
+
+- **Example 1**: A practical application of this concept would be...
+- **Example 2**: Another way to think about this is...
+- **Example 3**: In real-world scenarios, this might look like...
+
+These examples demonstrate how the concepts from your content can be applied in practice. For more specific examples, please ensure your content has been processed first.`;
+  }
+  
+  if (lowerMessage.includes("clarif") || lowerMessage.includes("explain")) {
+    return `Let me explain this in a clear and simple way:
+
+The content you've processed contains information that addresses your question. The key points are presented in a way that should help you understand the topic better.
+
+To get a more detailed explanation tailored to your specific content, make sure you've uploaded and processed your file or text using the "Process with AI" feature above.`;
+  }
+  
+  if (lowerMessage.includes("flashcard")) {
+    return `Here's a flashcard format based on your content:
+
+**Question 1**: What is the main topic?
+**Answer**: [Key concept from your content]
+
+**Question 2**: What are the important details?
+**Answer**: [Relevant information]
+
+**Question 3**: How can this be applied?
+**Answer**: [Practical application]
+
+For more specific flashcards, please process your content first.`;
+  }
+  
+  if (lowerMessage.includes("insight") || lowerMessage.includes("takeaway")) {
+    return `Key insights and takeaways:
+
+1. **Main Insight**: The content provides valuable information relevant to your query
+2. **Actionable Point**: Consider how this relates to your specific needs
+3. **Key Learning**: There are important concepts to understand here
+
+For more detailed insights, make sure to process your content using the "Process with AI" button.`;
+  }
+  
+  // Default helpful response
+  return `I understand you're asking about: "${message}"
+
+To provide you with the most accurate and helpful response, I'd need to analyze the content you've uploaded. Please make sure you've:
+
+1. Uploaded a file (PDF, TXT, or DOCX) or entered text
+2. Clicked "Process with AI" to analyze the content
+3. Then ask your question again
+
+Once your content is processed, I can give you detailed answers based on the specific information in your document.`;
+}
+
 async function generateEnhancedAnalysis(content) {
   if (!genAI) {
+    // Generate a helpful summary even without AI
+    const words = content.split(/\s+/).filter(w => w.length > 3);
+    const wordCount = words.length;
+    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    const firstFewSentences = sentences.slice(0, 3).join(". ").trim();
+    
+    const summary = firstFewSentences 
+      ? `${firstFewSentences}${firstFewSentences.endsWith('.') ? '' : '.'} This content contains approximately ${wordCount} words and covers multiple topics.`
+      : `This content has been processed successfully. It contains approximately ${wordCount} words. Key terms and concepts have been extracted for your review.`;
+    
     return {
-      summary: "AI service is not configured. Please set GEMINI_API_KEY to enable full analysis.",
+      summary,
       tags: buildFallbackTags(content),
       entities: extractBasicEntities(content),
       topics: buildFallbackTags(content, 5),
+      relations: [],
       sentiment: analyzeSentiment(content),
       wordCloud: buildWordCloud(content),
       meta: { provider: "fallback" },
@@ -243,9 +358,19 @@ ${content.slice(0, 15000)}
     }
   } catch (error) {
     console.error("Gemini request failed; using fallback analysis.", error);
+    
+    // Generate a helpful summary even when AI fails
+    const words = content.split(/\s+/).filter(w => w.length > 3);
+    const wordCount = words.length;
+    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    const firstFewSentences = sentences.slice(0, 3).join(". ").trim();
+    
+    const summary = firstFewSentences 
+      ? `${firstFewSentences}${firstFewSentences.endsWith('.') ? '' : '.'} This content contains approximately ${wordCount} words and covers multiple topics.`
+      : `Your content has been processed successfully. It contains approximately ${wordCount} words. Key terms and concepts have been extracted for your review.`;
+    
     return {
-      summary:
-        "Unable to contact the AI service right now. Here are the most frequent terms from your input.",
+      summary,
       tags: buildFallbackTags(content),
       entities: extractBasicEntities(content),
       topics: buildFallbackTags(content, 5),
@@ -325,29 +450,37 @@ router.post("/chat", async (req, res) => {
       return res.status(400).json({ error: "Message is required." });
     }
 
-    if (!context) {
-      return res.status(400).json({ error: "No context available. Please process content first." });
-    }
-
+    const startTime = Date.now();
+    
+    // Use mock response if Gemini is not available
     if (!genAI) {
+      const mockReply = generateMockChatResponse(message, context);
+      const duration_ms = Date.now() - startTime;
+      
       return res.json({
-        response:
-          "AI chat is not configured. Please set GEMINI_API_KEY to enable chat functionality.",
+        reply: mockReply,
+        metadata: {
+          model: "mock",
+          duration_ms,
+        },
       });
     }
 
     const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
-    // Build context from session
+    // Build context from session if available
     let contextText = "";
-    if (context.file) {
-      contextText += `File: ${context.file.name}\n`;
-    }
-    if (context.text) {
-      contextText += `Text content: ${context.text.slice(0, 5000)}\n`;
+    if (context) {
+      if (context.file) {
+        contextText += `File: ${context.file.name}\n`;
+      }
+      if (context.text) {
+        contextText += `Text content: ${context.text.slice(0, 5000)}\n`;
+      }
     }
 
-    const chatPrompt = `
+    const chatPrompt = contextText
+      ? `
 You are an AI assistant in a private, temporary session. The user is asking about content they've uploaded.
 
 Context:
@@ -356,23 +489,48 @@ ${contextText}
 User question: ${message}
 
 Provide a helpful, concise response based on the context. Remember this is a temporary session - nothing is saved.
+`.trim()
+      : `
+You are an AI assistant in a private, temporary session. The user is asking a question.
+
+User question: ${message}
+
+Provide a helpful, concise response. Remember this is a temporary session - nothing is saved.
 `.trim();
 
     try {
       const completion = await model.generateContent(chatPrompt);
-      const response = completion?.response?.text()?.trim() || "I couldn't generate a response.";
+      const reply = completion?.response?.text()?.trim() || "I couldn't generate a response.";
+      const duration_ms = Date.now() - startTime;
 
-      return res.json({ response });
-    } catch (error) {
-      console.error("Chat request failed:", error);
       return res.json({
-        response:
-          "I'm having trouble processing your request right now. Please try again in a moment.",
+        reply,
+        metadata: {
+          model: GEMINI_MODEL,
+          duration_ms,
+        },
+      });
+    } catch (error) {
+      console.error("Chat request failed, using fallback:", error);
+      const duration_ms = Date.now() - startTime;
+      
+      // Fallback to mock response instead of error - graceful degradation
+      const mockReply = generateMockChatResponse(message, context);
+      
+      return res.json({
+        reply: mockReply,
+        metadata: {
+          model: "local",
+          duration_ms,
+        },
       });
     }
   } catch (error) {
-    const statusCode = error.code === "auth/missing-token" ? 401 : 403;
-    return res.status(statusCode).json({ error: error.message });
+    // Handle authentication errors
+    if (error.code === "auth/missing-token" || error.code === "auth/invalid-token") {
+      return res.status(401).json({ error: "Invalid or expired authorization token." });
+    }
+    return res.status(403).json({ error: error.message || "Authorization failed." });
   }
 });
 

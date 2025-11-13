@@ -524,6 +524,7 @@
 .chat-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 1rem;
   color: rgba(210, 230, 255, 0.9);
@@ -623,6 +624,185 @@
 .chat-send:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.debug-toggle {
+  margin-left: auto;
+  padding: 0.25rem 0.5rem;
+  background: rgba(0, 200, 255, 0.1);
+  border: 1px solid rgba(0, 200, 255, 0.2);
+  border-radius: 6px;
+  color: rgba(210, 230, 255, 0.7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.debug-toggle:hover {
+  background: rgba(0, 200, 255, 0.2);
+  border-color: rgba(0, 200, 255, 0.4);
+  color: rgba(210, 230, 255, 0.9);
+}
+
+.debug-panel {
+  margin-bottom: 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 0.75rem;
+  border: 1px solid rgba(0, 200, 255, 0.2);
+  overflow: hidden;
+}
+
+.debug-content {
+  font-size: 0.75rem;
+  color: rgba(200, 220, 255, 0.8);
+}
+
+.debug-content pre {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+}
+
+.chat-timestamp {
+  display: block;
+  font-size: 0.7rem;
+  color: rgba(170, 200, 225, 0.5);
+  margin-top: 0.25rem;
+}
+
+.chat-message.error {
+  align-self: center;
+  background: rgba(255, 75, 130, 0.2);
+  border: 1px solid rgba(255, 75, 130, 0.4);
+  color: #ff9fbf;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chat-retry {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: rgba(255, 75, 130, 0.3);
+  border: 1px solid rgba(255, 75, 130, 0.5);
+  border-radius: 6px;
+  color: #ff9fbf;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  align-self: flex-start;
+}
+
+.chat-retry:hover {
+  background: rgba(255, 75, 130, 0.4);
+  border-color: rgba(255, 75, 130, 0.7);
+  transform: scale(1.05);
+}
+
+.typing-indicator {
+  align-self: flex-start;
+  background: rgba(140, 70, 255, 0.15);
+  border: 1px solid rgba(140, 70, 255, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  background: rgba(140, 70, 255, 0.8);
+  border-radius: 50%;
+  animation: typingDot 1.4s ease-in-out infinite;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typingDot {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+  30% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+}
+
+.typing-text {
+  color: rgba(200, 180, 255, 0.8);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+.chat-suggestion-chip {
+  padding: 0.4rem 0.75rem;
+  background: rgba(0, 200, 255, 0.15);
+  border: 1px solid rgba(0, 200, 255, 0.3);
+  border-radius: 16px;
+  color: rgba(210, 230, 255, 0.8);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.chat-suggestion-chip:hover:not(:disabled) {
+  background: rgba(0, 200, 255, 0.25);
+  border-color: rgba(0, 200, 255, 0.5);
+  color: rgba(210, 230, 255, 1);
+  transform: translateY(-1px);
+}
+
+.chat-suggestion-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .results-content {
