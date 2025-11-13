@@ -1,0 +1,139 @@
+.graph-stats {
+  padding: 1rem;
+  background: rgba(30, 41, 59, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  min-width: 200px;
+  max-width: 250px;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.graph-stats h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(100, 116, 139, 0.2);
+}
+
+.graph-stats h4 svg {
+  color: #10b981;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 8px;
+  border: 1px solid rgba(100, 116, 139, 0.1);
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-bottom: 0.25rem;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #10b981;
+}
+
+/* Stats Breakdown */
+.stats-breakdown {
+  margin-top: 1rem;
+}
+
+.stats-breakdown h5 {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #94a3b8;
+  margin: 0 0 0.5rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.5rem;
+  margin-bottom: 0.25rem;
+  background: rgba(15, 23, 42, 0.3);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.breakdown-item:hover {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.breakdown-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+}
+
+.breakdown-label svg {
+  color: #10b981;
+}
+
+.breakdown-label.edge-label {
+  font-size: 0.8rem;
+  text-transform: capitalize;
+  color: #94a3b8;
+}
+
+.breakdown-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  min-width: 32px;
+  text-align: center;
+}
+
+/* Hover Effects */
+.graph-stats:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .graph-stats {
+    max-width: 100%;
+    position: static;
+    margin-top: 1rem;
+  }
+}

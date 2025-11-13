@@ -6,6 +6,7 @@ Your Mind. Remembered Forever.
 CogniVault is an AI‑powered memory vault built with React + Vite. It turns your notes, files, and thoughts into a living, searchable memory system with cinematic UI, day/night themes, and smooth page transitions.
 
 Features
+- **🌐 Interactive Knowledge Graph** - Visualize your memories and their connections
 - Premium landing experience with neon cyan/magenta/purple brand palette
 - Particle and glow backgrounds with cursor‑follow effects
 - 1‑second route/page loader
@@ -13,15 +14,29 @@ Features
 - Theme toggle (day/night) with soft transitions
 - Framer Motion section reveals and micro‑interactions
 - Responsive layout and glass/neon styling
+- **🧠 AI-Powered Memory Processing** - Automatic tagging, summarization, and entity extraction
+- **🔍 Semantic Search** - Find memories based on meaning, not just keywords
+- **📊 Graph Analytics** - Insights into your knowledge network
 
 Tech Stack
+**Frontend:**
 - React 18, Vite
 - React Router
+- React Flow (Knowledge Graph Visualization)
 - Framer Motion
+- Firebase Authentication
 - CSS Modules by directory (centralized styles under src/styles)
 
+**Backend:**
+- Node.js + Express
+- Neo4j (Graph Database)
+- MongoDB (Document Store)
+- Pinecone (Vector Database)
+- Google Gemini API (AI Processing)
+
 Monorepo layout
-- client/ — React app (all code lives here)
+- client/ — React app (frontend)
+- server/ — Node.js backend with APIs and graph services
 
 Quick start
 1) Install
@@ -35,6 +50,51 @@ The app starts on http://localhost:5173 by default.
 3) Build
 - npm run build
 - npm run preview
+
+## Knowledge Graph Setup
+
+### Prerequisites
+1. **Neo4j Database** (Optional - will use mock if not available)
+   - Download from https://neo4j.com/download/
+   - Create database with username `neo4j`
+   
+2. **MongoDB** (Optional - will use in-memory if not available)
+   - Download from https://www.mongodb.com/try/download/community
+
+### Quick Setup
+```bash
+# Run the setup script
+chmod +x setup.sh
+./setup.sh
+
+# Start both frontend and backend
+./run.sh
+```
+
+### Manual Setup
+```bash
+# Backend setup
+cd server
+npm install
+cp .env.example .env
+npm run dev
+
+# Frontend (in new terminal)
+cd client
+npm install
+npm run dev
+```
+
+### Accessing the Knowledge Graph
+1. Navigate to http://localhost:5173/knowledge-graph
+2. Click "Mock Data" to initialize sample data
+3. Interact with the graph:
+   - Search nodes by keywords
+   - Click nodes to explore connections
+   - Adjust depth level (1-5)
+   - Filter by node type (Memory, Concept, Entity, Source)
+   - Switch between layout modes (Force, Circular, Grid)
+   - Toggle labels on/off
 
 Key scripts (client/package.json)
 - dev: start Vite dev server
@@ -98,6 +158,7 @@ Contributing
 - Prefer small, composable components and keep styles in src/styles.
 
 License
-- Proprietary — © CogniVault. All rights reserved.
+- Proprietary — CogniVault 
+**Your Mind. Remembered Forever.**
 
-
+A powerful AI-powered digital memory vault with an interactive knowledge graph visualization.. All rights reserved.

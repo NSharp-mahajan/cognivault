@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import "../styles/dashboard.css";
 
@@ -14,7 +15,21 @@ const cards = [
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [activeItem, setActiveItem] = useState("Memories");
+
+  const handleSidebarClick = (item) => {
+    setActiveItem(item);
+    if (item === "Graph") {
+      navigate("/knowledge-graph");
+    }
+  };
+
+  const handleCardClick = (cardTitle) => {
+    if (cardTitle === "Knowledge Graph") {
+      navigate("/knowledge-graph");
+    }
+  };
 
   return (
     <motion.main
@@ -37,7 +52,7 @@ export default function Dashboard() {
               <div
                 key={item}
                 className={`side-item ${activeItem === item ? "active" : ""}`}
-                onClick={() => setActiveItem(item)}
+                onClick={() => handleSidebarClick(item)}
               >
                 {item}
               </div>
@@ -70,20 +85,25 @@ export default function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 + index * 0.1 }}
               whileHover={{ scale: 1.02, y: -4 }}
+              onClick={() => handleCardClick(card.title)}
+              style={{ cursor: card.title === "Knowledge Graph" ? "pointer" : "default" }}
             >
               <div className="card-icon">{card.icon}</div>
               <h4 className="card-title">{card.title}</h4>
               <p className="muted">{card.desc}</p>
               {card.title === "Knowledge Graph" && (
-                <div className="graph-preview">
-                  {/* Replace with your graph preview: place file at /public/assets/graph-preview.png */}
-                  {/* <img src="/assets/graph-preview.png" alt="Graph preview" /> */}
-                  <div className="graph-placeholder">
-                    <div className="graph-node"></div>
-                    <div className="graph-node"></div>
-                    <div className="graph-node"></div>
+                <>
+                  <div className="graph-preview">
+                    {/* Replace with your graph preview: place file at /public/assets/graph-preview.png */}
+                    {/* <img src="/assets/graph-preview.png" alt="Graph preview" /> */}
+                    <div className="graph-placeholder">
+                      <div className="graph-node"></div>
+                      <div className="graph-node"></div>
+                      <div className="graph-node"></div>
+                    </div>
                   </div>
-                </div>
+                  <button className="explore-btn">Explore Graph →</button>
+                </>
               )}
             </motion.div>
           ))}

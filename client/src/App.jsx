@@ -12,6 +12,7 @@ import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
+import KnowledgeGraph from "./components/KnowledgeGraph";
 import "./styles/global.css";
 
 function App() {
@@ -69,6 +70,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/knowledge-graph"
+                  element={
+                    <ProtectedRoute>
+                      <KnowledgeGraph />
                     </ProtectedRoute>
                   }
                 />

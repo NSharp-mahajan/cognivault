@@ -1,0 +1,140 @@
+.custom-node {
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: rgba(30, 41, 59, 0.95);
+  border: 2px solid;
+  min-width: 80px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Node type specific styles */
+.node-memory {
+  border-color: #10b981;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(30, 41, 59, 0.95));
+}
+
+.node-memory:hover {
+  border-color: #34d399;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(30, 41, 59, 0.95));
+  box-shadow: 0 8px 16px rgba(16, 185, 129, 0.3);
+}
+
+.node-concept {
+  border-color: #6366f1;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(30, 41, 59, 0.95));
+}
+
+.node-concept:hover {
+  border-color: #818cf8;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(30, 41, 59, 0.95));
+  box-shadow: 0 8px 16px rgba(99, 102, 241, 0.3);
+}
+
+.node-entity {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(30, 41, 59, 0.95));
+}
+
+.node-entity:hover {
+  border-color: #fbbf24;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(30, 41, 59, 0.95));
+  box-shadow: 0 8px 16px rgba(245, 158, 11, 0.3);
+}
+
+.node-source {
+  border-color: #8b5cf6;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(30, 41, 59, 0.95));
+}
+
+.node-source:hover {
+  border-color: #a78bfa;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(30, 41, 59, 0.95));
+  box-shadow: 0 8px 16px rgba(139, 92, 246, 0.3);
+}
+
+/* Selected state */
+.custom-node.selected {
+  transform: scale(1.1);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 20px 10px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+/* Node content */
+.node-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.node-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f1f5f9;
+}
+
+.node-memory .node-icon {
+  color: #10b981;
+}
+
+.node-concept .node-icon {
+  color: #6366f1;
+}
+
+.node-entity .node-icon {
+  color: #f59e0b;
+}
+
+.node-source .node-icon {
+  color: #8b5cf6;
+}
+
+.node-label {
+  font-size: 0.85rem;
+  color: #e2e8f0;
+  text-align: center;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* React Flow handles */
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: #64748b;
+  border: 2px solid #1e293b;
+}
+
+.react-flow__handle-top {
+  top: -4px;
+}
+
+.react-flow__handle-bottom {
+  bottom: -4px;
+}
+
+.custom-node:hover .react-flow__handle {
+  background: #94a3b8;
+  width: 10px;
+  height: 10px;
+}
