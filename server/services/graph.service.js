@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import neo4j from 'neo4j-driver';
 import { getDriver } from '../config/neo4j.js';
 import { getDB } from '../config/mongodb.js';
 import { getPineconeIndex } from '../config/pinecone.js';
@@ -257,6 +258,9 @@ export async function getUserGraph(userId, limit = 100) {
   const driver = getDriver();
   const session = driver.session();
   
+  // Ensure limit is a Neo4j integer type
+  const intLimit = neo4j.int(parseInt(limit) || 100);
+  
   try {
     // Get all nodes for user
     const nodesResult = await session.run(
@@ -264,7 +268,7 @@ export async function getUserGraph(userId, limit = 100) {
        WHERE n.user_id = $userId
        RETURN n
        LIMIT $limit`,
-      { userId, limit }
+      { userId, limit: intLimit }
     );
     
     const nodes = nodesResult.records.map(record => {
@@ -284,7 +288,7 @@ export async function getUserGraph(userId, limit = 100) {
        WHERE a.user_id = $userId AND (b.user_id = $userId OR b.user_id IS NULL)
        RETURN a.id as source, b.id as target, type(r) as type, properties(r) as props
        LIMIT $limit`,
-      { userId, limit }
+      { userId, limit: intLimit }
     );
     
     const edges = edgesResult.records.map(record => ({

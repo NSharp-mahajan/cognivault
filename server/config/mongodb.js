@@ -10,18 +10,27 @@ export async function connectMongoDB() {
   try {
     const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/cognivault';
     
-    client = new MongoClient(uri);
+    // MongoDB Atlas optimized connection options
+    client = new MongoClient(uri, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+    
     await client.connect();
+    
+    // Verify connection
+    await client.db('admin').command({ ping: 1 });
+    console.log('✅ Successfully connected to MongoDB Atlas');
     
     db = client.db('cognivault');
     
     // Create collections if they don't exist
     await createCollections();
     
-    console.log('Connected to MongoDB');
+    console.log('✅ Database and collections initialized');
     return db;
   } catch (error) {
-    console.error('MongoDB connection error:', error);
+    console.error('❌ MongoDB connection error:', error.message);
     throw error;
   }
 }

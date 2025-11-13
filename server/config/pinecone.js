@@ -15,7 +15,8 @@ export async function initPinecone() {
     }
     
     pineconeClient = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY
+      apiKey: process.env.PINECONE_API_KEY,
+      environment: process.env.PINECONE_ENVIRONMENT || 'gcp-starter'
     });
     
     const indexName = process.env.PINECONE_INDEX_NAME || 'cognivault';
